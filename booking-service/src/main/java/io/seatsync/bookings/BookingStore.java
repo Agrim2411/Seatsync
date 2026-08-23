@@ -29,7 +29,9 @@ class BookingStore {
                 + ":"
                 + request.amountMinor()
                 + ":"
-                + request.currency());
+                + request.currency()
+                + ":"
+                + request.paymentMethodToken());
     var prior = bookings.findByIdempotencyKey(key);
     if (prior.isPresent()) {
       if (!prior.get().getRequestHash().equals(hash))
