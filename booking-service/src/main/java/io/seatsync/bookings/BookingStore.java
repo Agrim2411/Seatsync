@@ -67,6 +67,12 @@ class BookingStore {
   }
 
   @Transactional(readOnly = true)
+  java.util.List<Booking> pendingPaymentsBefore(java.time.Instant cutoff) {
+    return bookings.findTop100ByStatusAndCreatedAtBeforeOrderByCreatedAtAsc(
+        Booking.Status.PENDING, cutoff);
+  }
+
+  @Transactional(readOnly = true)
   java.util.List<Booking> unknownPayments() {
     return bookings.findTop100ByStatusOrderByCreatedAtAsc(Booking.Status.PAYMENT_UNKNOWN);
   }

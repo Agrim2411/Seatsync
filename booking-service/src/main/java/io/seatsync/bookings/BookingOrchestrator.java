@@ -22,15 +22,18 @@ class BookingOrchestrator {
   private final BookingStore store;
   private final ReservationCommandServiceGrpc.ReservationCommandServiceBlockingStub reservations;
   private final RestClient payments;
+  private final Duration paymentResultGrace;
 
   BookingOrchestrator(
       BookingStore store,
       RestClient.Builder builder,
       ManagedChannel reservationChannel,
-      @Value("${seatsync.payment-url:http://localhost:8084}") String paymentUrl) {
+      @Value("${seatsync.payment-url:http://localhost:8084}") String paymentUrl,
+      @Value("${seatsync.payment-result-grace:PT10S}") Duration paymentResultGrace) {
     this.store = store;
     reservations = ReservationCommandServiceGrpc.newBlockingStub(reservationChannel);
     payments = builder.clone().baseUrl(paymentUrl).build();
+    this.paymentResultGrace = paymentResultGrace;
   }
 
   BookingResponse checkout(Booking booking, CreateBookingRequest request) {
@@ -83,7 +86,9 @@ class BookingOrchestrator {
       }
     } catch (RestClientResponseException e) {
       if (e.getStatusCode().value() == 404
-          && Duration.between(booking.getCreatedAt(), Instant.now()).toSeconds() > 10) {
+          && Duration.between(booking.getCreatedAt(), Instant.now())
+                  .compareTo(paymentResultGrace)
+              > 0) {
         releaseHold(booking.getHoldId(), booking.getCustomerId());
         store.failed(booking.getId(), "PAYMENT_NOT_FOUND");
       }
