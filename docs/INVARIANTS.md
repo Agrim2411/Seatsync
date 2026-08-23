@@ -5,7 +5,7 @@ These statements define correctness. A feature is incomplete if it violates one 
 1. A seat has at most one active hold.
 2. A seat has at most one confirmed booking.
 3. A hold may be confirmed only by the customer that owns it.
-4. An expired, released, or already confirmed hold cannot be confirmed again.
+4. An expired or released hold cannot be confirmed. Repeating confirmation for an already confirmed hold by the same customer returns its confirmed state.
 5. Repeating a command with the same idempotency key and payload returns the original outcome.
 6. Reusing an idempotency key with a different payload is rejected.
 7. Every committed state transition that other services must observe creates an outbox record in the same database transaction.

@@ -14,7 +14,7 @@ Track these before defining objectives:
 | `PAYMENT_UNKNOWN` age and count | Detects unresolved provider outcomes |
 | Refund-pending age | Detects financial compensation risk |
 
-The booking reconciliation worker retries both unknown payment lookups and pending refunds. Refund requests are idempotent at the payment service, so a worker crash or duplicate execution does not issue a second financial effect.
+The booking reconciliation worker checks stale `PENDING` and all `PAYMENT_UNKNOWN` bookings, then retries pending refunds. Scanning `PENDING` closes the crash window between creating a booking and recording the checkout result. `PAYMENT_RESULT_GRACE` defaults to 10 seconds, which is longer than this project's four-second maximum simulated payment delay; it also keeps recovery from racing an active checkout. Payment authorization and refund requests are idempotent, so duplicate worker execution does not issue a second financial effect. Increase that grace period if the simulator is replaced by a provider with a longer completion window.
 
 Do not treat expected `409 SEAT_UNAVAILABLE` responses as server failures.
 
@@ -27,12 +27,14 @@ Do not treat expected `409 SEAT_UNAVAILABLE` responses as server failures.
 | Kafka unavailable | State changes commit with outbox rows; projection becomes stale until publishing resumes |
 | Event consumer poison record | Retries three times, then publishes to the `.DLT` topic |
 | Payment timeout | Booking enters `PAYMENT_UNKNOWN`; reconciliation queries the provider simulator |
+| Booking process interruption | Persisted `PENDING` bookings are reconciled against the payment service |
 | gRPC confirmation timeout | An authorized payment moves into compensation and refund processing |
 
 ## Alerts
 
 - Oldest outbox row exceeds 60 seconds.
 - Any active hold is more than 30 seconds past expiry.
+- Any `PENDING` booking exceeds 30 seconds.
 - Any `PAYMENT_UNKNOWN` booking exceeds 30 seconds.
 - Any `REFUND_PENDING` booking exceeds five minutes.
 - Kafka DLT receives a record.

@@ -38,7 +38,7 @@ flowchart TD
 3. The reservation transaction writes an outbox row. A background publisher sends that change to Kafka, and the event service updates its read model.
 4. The booking service asks the payment service to authorize the simulated payment.
 5. After authorization, booking calls reservation over gRPC to confirm the hold.
-6. If confirmation fails, booking records `REFUND_PENDING` and retries the compensating refund. If the payment result is unclear, it records `PAYMENT_UNKNOWN` and reconciles it in the background.
+6. If confirmation fails, booking records `REFUND_PENDING` and retries the compensating refund. A background worker also recovers `PENDING` bookings left by an interrupted checkout and reconciles unclear `PAYMENT_UNKNOWN` results.
 
 The main code path is deliberately direct: controllers validate HTTP input, services contain business decisions, repositories persist state, and scheduled workers retry unfinished background work.
 
@@ -50,7 +50,7 @@ PostgreSQL is the source of truth. Redis is a fast admission gate and TTL index;
 2. A conditional PostgreSQL update changes `AVAILABLE` to `HELD`. Only one transaction can update the row.
 3. A unique active-hold constraint provides a second database boundary.
 4. If the database transaction fails, ownership-scoped Redis cleanup removes only the caller's token.
-5. Confirmation requires the original hold token and an unexpired database record.
+5. Confirmation requires the owning customer ID and an active, unexpired database record.
 6. The expiration worker locks due holds, releases seat state, and emits an outbox event in the same transaction.
 7. Booking and payment endpoints require idempotency keys; replays return the original result.
 
@@ -67,10 +67,32 @@ The complete local stack requires Java 21, Maven 3.9+, and a compatible containe
 ```bash
 docker compose up -d postgres redis kafka
 mvn clean package -DskipTests
+```
+
+Then start each service in a separate terminal:
+
+```bash
+# Terminal 1
 mvn -pl event-service spring-boot:run
+```
+
+```bash
+# Terminal 2
 mvn -pl reservation-service spring-boot:run
+```
+
+```bash
+# Terminal 3
 mvn -pl payment-service spring-boot:run
+```
+
+```bash
+# Terminal 4
 mvn -pl booking-service spring-boot:run
+```
+
+```bash
+# Terminal 5
 mvn -pl gateway-service spring-boot:run
 ```
 
