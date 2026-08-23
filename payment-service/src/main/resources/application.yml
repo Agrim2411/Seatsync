@@ -1,0 +1,13 @@
+server.port: 8084
+spring:
+  application.name: payment-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/seatsync_payments}
+    username: ${DB_USER:seatsync}
+    password: ${DB_PASSWORD:seatsync}
+  jpa:
+    open-in-view: false
+    hibernate.ddl-auto: validate
+management:
+  endpoints.web.exposure.include: health,info,prometheus
+  endpoint.health.probes.enabled: true

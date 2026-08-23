@@ -1,0 +1,14 @@
+{{- range $name, $config := .Values.services }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+spec:
+  selector: {app.kubernetes.io/name: {{ $name }}}
+  ports:
+    - {name: http, port: {{ $config.port }}, targetPort: http}
+    {{- if $config.grpcPort }}
+    - {name: grpc, port: {{ $config.grpcPort }}, targetPort: grpc}
+    {{- end }}
+{{- end }}

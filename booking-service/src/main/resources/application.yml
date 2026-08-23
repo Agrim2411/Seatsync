@@ -1,0 +1,18 @@
+server.port: 8083
+spring:
+  application.name: booking-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/seatsync_bookings}
+    username: ${DB_USER:seatsync}
+    password: ${DB_PASSWORD:seatsync}
+  jpa:
+    open-in-view: false
+    hibernate.ddl-auto: validate
+seatsync:
+  reservation-grpc-host: ${RESERVATION_GRPC_HOST:localhost}
+  reservation-grpc-port: ${RESERVATION_GRPC_PORT:9082}
+  payment-url: ${PAYMENT_URL:http://localhost:8084}
+  payment-reconciliation-ms: ${PAYMENT_RECONCILIATION_MS:2000}
+management:
+  endpoints.web.exposure.include: health,info,prometheus
+  endpoint.health.probes.enabled: true

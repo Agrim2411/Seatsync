@@ -1,0 +1,69 @@
+name: cloud contention benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      concurrency:
+        description: Concurrent attempts for one seat
+        required: true
+        default: "500"
+        type: choice
+        options:
+          - "100"
+          - "500"
+          - "1000"
+          - "2000"
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and start reservation stack
+        run: docker compose up -d --build reservation-service
+
+      - name: Wait for reservation service
+        run: |
+          for attempt in {1..60}; do
+            if curl --fail --silent http://localhost:8082/actuator/health >/dev/null; then
+              exit 0
+            fi
+            sleep 5
+          done
+          docker compose ps
+          docker compose logs --tail=300 reservation-service postgres redis kafka
+          exit 1
+
+      - name: Run same-seat contention benchmark
+        run: |
+          mkdir -p load-tests/results
+          docker run --rm --network host \
+            -e VUS="${{ inputs.concurrency }}" \
+            -v "${{ github.workspace }}:/work" \
+            -w /work \
+            grafana/k6:0.54.0 run \
+            --summary-export="/work/load-tests/results/contention-${{ inputs.concurrency }}.json" \
+            load-tests/contention.js
+
+      - name: Show service logs on failure
+        if: failure()
+        run: docker compose logs --tail=500 reservation-service postgres redis kafka
+
+      - name: Upload benchmark evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: seatsync-contention-${{ inputs.concurrency }}
+          path: load-tests/results/*.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Stop stack
+        if: always()
+        run: docker compose down -v

@@ -1,0 +1,29 @@
+server:
+  port: 8082
+spring:
+  application.name: reservation-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/seatsync_reservations}
+    username: ${DB_USER:seatsync}
+    password: ${DB_PASSWORD:seatsync}
+  data.redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    timeout: 500ms
+  jpa:
+    open-in-view: false
+    hibernate.ddl-auto: validate
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+seatsync:
+  hold-ttl: ${HOLD_TTL:PT5M}
+  expiry-scan-ms: ${EXPIRY_SCAN_MS:1000}
+  grpc-port: ${GRPC_PORT:9082}
+  reservation-topic: ${RESERVATION_TOPIC:reservation-events}
+  outbox-poll-ms: ${OUTBOX_POLL_MS:500}
+management:
+  endpoints.web.exposure.include: health,info,prometheus
+  endpoint.health.probes.enabled: true

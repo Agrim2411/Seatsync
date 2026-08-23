@@ -1,0 +1,13 @@
+syntax = "proto3";
+package seatsync.reservation.v1;
+option java_package = "io.seatsync.grpc";
+option java_multiple_files = true;
+
+service ReservationCommandService {
+  rpc ConfirmHold (ConfirmHoldRequest) returns (HoldReply);
+  rpc ReleaseHold (ReleaseHoldRequest) returns (HoldReply);
+}
+
+message ConfirmHoldRequest { string hold_id = 1; string customer_id = 2; }
+message ReleaseHoldRequest { string hold_id = 1; string customer_id = 2; }
+message HoldReply { string hold_id = 1; string status = 2; string failure_code = 3; }

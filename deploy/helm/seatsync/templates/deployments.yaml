@@ -1,0 +1,51 @@
+{{- range $name, $config := .Values.services }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels: {app.kubernetes.io/name: {{ $name }}}
+spec:
+  replicas: {{ $config.replicas }}
+  selector:
+    matchLabels: {app.kubernetes.io/name: {{ $name }}}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: {{ $name }}}
+    spec:
+      securityContext: {runAsNonRoot: true}
+      containers:
+        - name: {{ $name }}
+          image: "{{ $.Values.image.registry }}/{{ $name }}:{{ $.Values.image.tag }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          env:
+            - {name: DB_USER, value: {{ $.Values.dependencies.postgresUser | quote }}}
+            - name: DB_PASSWORD
+              valueFrom: {secretKeyRef: {name: seatsync-database, key: password}}
+            - {name: REDIS_HOST, value: {{ $.Values.dependencies.redisHost | quote }}}
+            - {name: KAFKA_BOOTSTRAP_SERVERS, value: {{ $.Values.dependencies.kafkaBootstrapServers | quote }}}
+            {{- if eq $name "event-service" }}
+            - {name: DB_URL, value: "jdbc:postgresql://{{ $.Values.dependencies.postgresHost }}:5432/seatsync_events"}
+            {{- else if eq $name "reservation-service" }}
+            - {name: DB_URL, value: "jdbc:postgresql://{{ $.Values.dependencies.postgresHost }}:5432/seatsync_reservations"}
+            {{- else if eq $name "booking-service" }}
+            - {name: DB_URL, value: "jdbc:postgresql://{{ $.Values.dependencies.postgresHost }}:5432/seatsync_bookings"}
+            - {name: RESERVATION_GRPC_HOST, value: reservation-service}
+            - {name: PAYMENT_URL, value: "http://payment-service:8084"}
+            {{- else if eq $name "payment-service" }}
+            - {name: DB_URL, value: "jdbc:postgresql://{{ $.Values.dependencies.postgresHost }}:5432/seatsync_payments"}
+            {{- else if eq $name "gateway-service" }}
+            - {name: EVENT_SERVICE_URL, value: "http://event-service:8081"}
+            - {name: RESERVATION_SERVICE_URL, value: "http://reservation-service:8082"}
+            - {name: BOOKING_SERVICE_URL, value: "http://booking-service:8083"}
+            {{- end }}
+          ports:
+            - {name: http, containerPort: {{ $config.port }}}
+            {{- if $config.grpcPort }}
+            - {name: grpc, containerPort: {{ $config.grpcPort }}}
+            {{- end }}
+          readinessProbe: {httpGet: {path: /actuator/health/readiness, port: http}, initialDelaySeconds: 20, periodSeconds: 5}
+          livenessProbe: {httpGet: {path: /actuator/health/liveness, port: http}, initialDelaySeconds: 30, periodSeconds: 10}
+          resources: {{ toYaml $.Values.resources | nindent 12 }}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
+{{- end }}

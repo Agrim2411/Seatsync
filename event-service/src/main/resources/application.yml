@@ -1,0 +1,27 @@
+server:
+  port: 8081
+spring:
+  application.name: event-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/seatsync_events}
+    username: ${DB_USER:seatsync}
+    password: ${DB_PASSWORD:seatsync}
+  jpa:
+    open-in-view: false
+    hibernate.ddl-auto: validate
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+seatsync:
+  reservation-topic: ${RESERVATION_TOPIC:reservation-events}
+  allowed-origins: ${ALLOWED_ORIGINS:http://localhost:3000}
+management:
+  endpoints.web.exposure.include: health,info,prometheus
+  endpoint.health.probes.enabled: true

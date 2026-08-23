@@ -1,0 +1,24 @@
+image:
+  registry: ghcr.io/agrim2411
+  tag: latest
+  pullPolicy: IfNotPresent
+services:
+  gateway-service: {port: 8080, replicas: 2}
+  event-service: {port: 8081, replicas: 2}
+  reservation-service: {port: 8082, grpcPort: 9082, replicas: 3}
+  booking-service: {port: 8083, replicas: 2}
+  payment-service: {port: 8084, replicas: 2}
+resources:
+  requests: {cpu: 200m, memory: 256Mi}
+  limits: {cpu: "1", memory: 768Mi}
+dependencies:
+  postgresHost: postgres
+  postgresUser: seatsync
+  postgresPassword: change-me
+  redisHost: redis
+  kafkaBootstrapServers: kafka:9092
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCpuUtilization: 65
