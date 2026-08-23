@@ -17,18 +17,22 @@ class PaymentService {
 
   @Transactional
   PaymentResponse authorize(String key, AuthorizeRequest request) {
-    if (key == null || key.isBlank())
+    if (key == null || key.isBlank()) {
       throw new PaymentException("IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key header is required");
+    }
+
     var prior = payments.findByIdempotencyKey(key);
     if (prior.isPresent()) {
       Payment p = prior.get();
       if (!p.getBookingId().equals(request.bookingId())
           || p.getAmountMinor() != request.amountMinor()
-          || !p.getCurrency().equals(request.currency()))
+          || !p.getCurrency().equals(request.currency())) {
         throw new PaymentException(
             "IDEMPOTENCY_KEY_REUSED", "Key was used for a different payment");
+      }
       return PaymentResponse.from(p);
     }
+
     simulateLatency(request.paymentMethodToken());
     Payment.Status status =
         request.paymentMethodToken().startsWith("pm_decline")

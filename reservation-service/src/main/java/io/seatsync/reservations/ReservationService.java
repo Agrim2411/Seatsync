@@ -47,15 +47,18 @@ class ReservationService {
 
   @Transactional
   HoldResponse createHold(String key, CreateHoldRequest request) {
-    if (key == null || key.isBlank())
+    if (key == null || key.isBlank()) {
       throw new ReservationException(
           "IDEMPOTENCY_KEY_REQUIRED", "Idempotency-Key header is required");
+    }
+
     String hash = hash(request.eventId() + ":" + request.seatId() + ":" + request.customerId());
     var replay = idempotency.findById(key);
     if (replay.isPresent()) {
-      if (!replay.get().getRequestHash().equals(hash))
+      if (!replay.get().getRequestHash().equals(hash)) {
         throw new ReservationException(
             "IDEMPOTENCY_KEY_REUSED", "Idempotency key was used for another request");
+      }
       return holds
           .findById(replay.get().getHoldId())
           .map(HoldResponse::from)
@@ -66,11 +69,14 @@ class ReservationService {
     UUID holdId = UUID.randomUUID();
     String token = holdId.toString();
     Duration gateTtl = holdTtl.plusSeconds(30);
+
+    // Redis rejects most competing requests quickly. PostgreSQL remains the final authority below.
     if (!gate.acquire(request.eventId(), request.seatId(), token, gateTtl)) {
       throw new ReservationException("SEAT_UNAVAILABLE", "Seat is already held or booked");
     }
     releaseGateIfTransactionRollsBack(request.eventId(), request.seatId(), token);
 
+    // This conditional update is the durable single-winner boundary.
     if (inventory.tryHold(request.eventId(), request.seatId()) != 1) {
       gate.release(request.eventId(), request.seatId(), token);
       throw new ReservationException("SEAT_UNAVAILABLE", "Seat is already held or booked");
@@ -101,14 +107,18 @@ class ReservationService {
   @Transactional
   HoldResponse confirm(UUID holdId, UUID customerId) {
     SeatHold hold = locked(holdId);
-    if (!hold.getCustomerId().equals(customerId))
+    if (!hold.getCustomerId().equals(customerId)) {
       throw new ReservationException("HOLD_OWNER_MISMATCH", "Hold belongs to another customer");
-    if (hold.getStatus() == HoldStatus.CONFIRMED) return HoldResponse.from(hold);
+    }
+    if (hold.getStatus() == HoldStatus.CONFIRMED) {
+      return HoldResponse.from(hold);
+    }
     if (hold.getStatus() != HoldStatus.ACTIVE || !hold.getExpiresAt().isAfter(clock.instant())) {
       throw new ReservationException("HOLD_NOT_ACTIVE", "Hold expired or was released");
     }
-    if (inventory.confirm(hold.getSeatId()) != 1)
+    if (inventory.confirm(hold.getSeatId()) != 1) {
       throw new ReservationException("INVALID_SEAT_STATE", "Seat cannot be confirmed");
+    }
     hold.confirm();
     gate.release(hold.getEventId(), hold.getSeatId(), hold.getOwnershipToken());
     outbox.save(new OutboxEvent("SeatHold", holdId, "reservation.hold.confirmed", payload(hold)));
@@ -118,9 +128,12 @@ class ReservationService {
   @Transactional
   void release(UUID holdId, UUID customerId) {
     SeatHold hold = locked(holdId);
-    if (!hold.getCustomerId().equals(customerId))
+    if (!hold.getCustomerId().equals(customerId)) {
       throw new ReservationException("HOLD_OWNER_MISMATCH", "Hold belongs to another customer");
-    if (hold.getStatus() != HoldStatus.ACTIVE) return;
+    }
+    if (hold.getStatus() != HoldStatus.ACTIVE) {
+      return;
+    }
     inventory.release(hold.getSeatId());
     hold.release(HoldStatus.RELEASED);
     gate.release(hold.getEventId(), hold.getSeatId(), hold.getOwnershipToken());
