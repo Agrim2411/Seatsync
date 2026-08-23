@@ -6,20 +6,16 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.*;
 
 @Component
 class ReservationEventProjector {
   private final JdbcTemplate jdbc;
   private final SeatRepository seats;
-  private final SeatMapWebSocket webSocket;
   private final ObjectMapper json;
 
-  ReservationEventProjector(
-      JdbcTemplate jdbc, SeatRepository seats, SeatMapWebSocket webSocket, ObjectMapper json) {
+  ReservationEventProjector(JdbcTemplate jdbc, SeatRepository seats, ObjectMapper json) {
     this.jdbc = jdbc;
     this.seats = seats;
-    this.webSocket = webSocket;
     this.json = json;
   }
 
@@ -40,38 +36,26 @@ class ReservationEventProjector {
     JsonNode data = root.path("data");
     UUID eventId = UUID.fromString(required(data, "eventId"));
     UUID seatId = UUID.fromString(required(data, "seatId"));
-    Seat.Availability availability =
-        switch (required(data, "status")) {
-          case "ACTIVE" -> Seat.Availability.HELD;
-          case "CONFIRMED" -> Seat.Availability.BOOKED;
-          case "RELEASED", "EXPIRED" -> Seat.Availability.AVAILABLE;
-          default -> throw new IllegalArgumentException("Unsupported reservation state");
-        };
-    if (seats.updateAvailability(eventId, seatId, availability) != 1)
+    Seat.Availability availability = toAvailability(required(data, "status"));
+    if (seats.updateAvailability(eventId, seatId, availability) != 1) {
       throw new IllegalStateException("Seat projection target does not exist: " + seatId);
-    String update =
-        json.writeValueAsString(
-            java.util.Map.of(
-                "eventId",
-                eventId,
-                "seatId",
-                seatId,
-                "availability",
-                availability,
-                "eventType",
-                type));
-    TransactionSynchronizationManager.registerSynchronization(
-        new TransactionSynchronization() {
-          @Override
-          public void afterCommit() {
-            webSocket.publish(eventId, update);
-          }
-        });
+    }
+  }
+
+  private Seat.Availability toAvailability(String reservationStatus) {
+    return switch (reservationStatus) {
+      case "ACTIVE" -> Seat.Availability.HELD;
+      case "CONFIRMED" -> Seat.Availability.BOOKED;
+      case "RELEASED", "EXPIRED" -> Seat.Availability.AVAILABLE;
+      default -> throw new IllegalArgumentException("Unsupported reservation state");
+    };
   }
 
   private String required(JsonNode node, String field) {
     String value = node.path(field).asText();
-    if (value.isBlank()) throw new IllegalArgumentException("Missing " + field);
+    if (value.isBlank()) {
+      throw new IllegalArgumentException("Missing " + field);
+    }
     return value;
   }
 }

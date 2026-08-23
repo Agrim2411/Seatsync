@@ -21,7 +21,6 @@ spring:
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
 seatsync:
   reservation-topic: ${RESERVATION_TOPIC:reservation-events}
-  allowed-origins: ${ALLOWED_ORIGINS:http://localhost:3000}
 management:
   endpoints.web.exposure.include: health,info,prometheus
   endpoint.health.probes.enabled: true
