@@ -71,6 +71,11 @@ class BookingStore {
     return bookings.findTop100ByStatusOrderByCreatedAtAsc(Booking.Status.PAYMENT_UNKNOWN);
   }
 
+  @Transactional(readOnly = true)
+  java.util.List<Booking> pendingRefunds() {
+    return bookings.findTop100ByStatusOrderByCreatedAtAsc(Booking.Status.REFUND_PENDING);
+  }
+
   @Transactional
   void failed(UUID id, String code) {
     getMutable(id).failed(code);

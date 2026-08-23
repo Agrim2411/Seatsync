@@ -16,5 +16,6 @@ class PaymentReconciliationWorker {
   @Scheduled(fixedDelayString = "${seatsync.payment-reconciliation-ms:2000}")
   void reconcile() {
     store.unknownPayments().forEach(orchestrator::reconcile);
+    store.pendingRefunds().forEach(orchestrator::retryRefund);
   }
 }

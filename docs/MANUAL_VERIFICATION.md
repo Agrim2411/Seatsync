@@ -19,6 +19,7 @@ Start the reservation service with `HOLD_TTL=PT10S`, create a hold, wait beyond 
 - Use `pm_decline` to verify that the booking fails and releases the hold.
 - Let a hold expire before checkout with `pm_success`; the booking must reach `REFUNDED` after payment authorization cannot confirm the seat.
 - Use `pm_timeout` to exercise the booking service's unavailable-payment path.
+- Make the payment service unavailable during compensation and verify the booking remains `REFUND_PENDING`; after restoring the payment service, the reconciliation worker must advance it to `REFUNDED`.
 
 ## Kafka outbox
 

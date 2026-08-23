@@ -14,6 +14,8 @@ Track these before defining objectives:
 | `PAYMENT_UNKNOWN` age and count | Detects unresolved provider outcomes |
 | Refund-pending age | Detects financial compensation risk |
 
+The booking reconciliation worker retries both unknown payment lookups and pending refunds. Refund requests are idempotent at the payment service, so a worker crash or duplicate execution does not issue a second financial effect.
+
 Do not treat expected `409 SEAT_UNAVAILABLE` responses as server failures.
 
 ## Failure behavior

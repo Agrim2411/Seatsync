@@ -8,6 +8,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -15,6 +17,8 @@ import org.springframework.web.client.RestClientResponseException;
 
 @Service
 class BookingOrchestrator {
+  private static final Logger log = LoggerFactory.getLogger(BookingOrchestrator.class);
+
   private final BookingStore store;
   private final ReservationCommandServiceGrpc.ReservationCommandServiceBlockingStub reservations;
   private final RestClient payments;
@@ -83,7 +87,35 @@ class BookingOrchestrator {
         releaseHold(booking.getHoldId(), booking.getCustomerId());
         store.failed(booking.getId(), "PAYMENT_NOT_FOUND");
       }
-    } catch (Exception ignored) {
+    } catch (Exception e) {
+      log.debug("Payment reconciliation deferred for booking {}", booking.getId(), e);
+    }
+  }
+
+  void retryRefund(Booking booking) {
+    if (booking.getStatus() != Booking.Status.REFUND_PENDING || booking.getPaymentId() == null)
+      return;
+    try {
+      PaymentResponse payment =
+          payments
+              .post()
+              .uri("/internal/payments/{id}/refund", booking.getPaymentId())
+              .retrieve()
+              .body(PaymentResponse.class);
+      if (payment != null && "REFUNDED".equals(payment.status())) {
+        store.refunded(booking.getId());
+      } else {
+        log.warn(
+            "Refund provider returned a non-refunded state for booking {} and payment {}",
+            booking.getId(),
+            booking.getPaymentId());
+      }
+    } catch (Exception e) {
+      log.warn(
+          "Refund attempt deferred for booking {} and payment {}",
+          booking.getId(),
+          booking.getPaymentId(),
+          e);
     }
   }
 
@@ -99,15 +131,7 @@ class BookingOrchestrator {
       store.confirmed(booking.getId(), payment.paymentId());
     } catch (Exception e) {
       store.refundPending(booking.getId(), payment.paymentId(), "HOLD_CONFIRMATION_FAILED");
-      try {
-        payments
-            .post()
-            .uri("/internal/payments/{id}/refund", payment.paymentId())
-            .retrieve()
-            .toBodilessEntity();
-        store.refunded(booking.getId());
-      } catch (Exception ignored) {
-      }
+      retryRefund(store.get(booking.getId()));
     }
   }
 
@@ -120,7 +144,8 @@ class BookingOrchestrator {
                   .setHoldId(holdId.toString())
                   .setCustomerId(customerId.toString())
                   .build());
-    } catch (Exception ignored) {
+    } catch (Exception e) {
+      log.warn("Hold release deferred to expiry for hold {}", holdId, e);
     }
   }
 }
