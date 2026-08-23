@@ -44,12 +44,16 @@ jobs:
         run: |
           mkdir -p load-tests/results
           docker run --rm --network host \
+            --user "$(id -u):$(id -g)" \
             -e VUS="${{ inputs.concurrency }}" \
             -v "${{ github.workspace }}:/work" \
             -w /work \
             grafana/k6:0.54.0 run \
             --summary-export="/work/load-tests/results/contention-${{ inputs.concurrency }}.json" \
             load-tests/contention.js
+
+      - name: Verify benchmark evidence
+        run: test -s "load-tests/results/contention-${{ inputs.concurrency }}.json"
 
       - name: Show service logs on failure
         if: failure()
