@@ -67,8 +67,7 @@ services:
     build: {context: ., args: {SERVICE: payment-service}}
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/seatsync_payments
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-    depends_on: {postgres: {condition: service_healthy}, kafka: {condition: service_started}}
+    depends_on: {postgres: {condition: service_healthy}}
     ports: ["8084:8084"]
 
   booking-service:
@@ -77,7 +76,6 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/seatsync_bookings
       RESERVATION_GRPC_HOST: reservation-service
       PAYMENT_URL: http://payment-service:8084
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     depends_on: {postgres: {condition: service_healthy}, reservation-service: {condition: service_started}, payment-service: {condition: service_started}}
     ports: ["8083:8083"]
 
@@ -96,13 +94,6 @@ services:
     profiles: ["observability"]
     volumes: ["./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
     ports: ["9090:9090"]
-
-  grafana:
-    image: grafana/grafana:11.5.2
-    profiles: ["observability"]
-    environment: {GF_SECURITY_ADMIN_PASSWORD: seatsync}
-    ports: ["3000:3000"]
-    depends_on: [prometheus]
 
 volumes:
   postgres-data:

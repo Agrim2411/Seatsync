@@ -12,10 +12,10 @@ flowchart TD
     G --> E[Event service]
     G --> R[Reservation service]
     G --> B[Booking service]
-    B --> R
-    B --> P[Payment service]
-    R --> K[(Kafka)]
-    K --> E
+    B -- gRPC --> R
+    B -- REST --> P[Payment service]
+    R -- transactional outbox --> K[(Kafka)]
+    K -- reservation events --> E
     E --> PG[(PostgreSQL)]
     R --> PG
     B --> PG
@@ -30,6 +30,17 @@ flowchart TD
 | `reservation-service` | Atomic expiring holds, authoritative seat state, expiration, and confirmation |
 | `booking-service` | Idempotent checkout orchestration and compensating actions |
 | `payment-service` | Deterministic payment-provider simulator with success, decline, timeout, and duplicate request modes |
+
+### How one booking works
+
+1. The client calls the gateway, which applies request correlation, rate limiting, and production JWT authentication.
+2. The reservation service creates a temporary seat hold. Redis is the fast contention gate; PostgreSQL decides the durable winner.
+3. The reservation transaction writes an outbox row. A background publisher sends that change to Kafka, and the event service updates its read model.
+4. The booking service asks the payment service to authorize the simulated payment.
+5. After authorization, booking calls reservation over gRPC to confirm the hold.
+6. If confirmation fails, booking records `REFUND_PENDING` and retries the compensating refund. If the payment result is unclear, it records `PAYMENT_UNKNOWN` and reconciles it in the background.
+
+The main code path is deliberately direct: controllers validate HTTP input, services contain business decisions, repositories persist state, and scheduled workers retry unfinished background work.
 
 ## Correctness model
 
@@ -47,7 +58,7 @@ See [the invariants](docs/INVARIANTS.md) and [architecture decisions](docs/adr/0
 
 ## Technology
 
-Java 21, Spring Boot, PostgreSQL, Redis, Kafka, REST/OpenAPI, gRPC/Protocol Buffers, Flyway, transactional outbox, Prometheus, Grafana, Docker Compose, Kubernetes/Helm, and k6.
+Java 21, Spring Boot, PostgreSQL, Redis, Kafka, REST/OpenAPI, gRPC/Protocol Buffers, Flyway, transactional outbox, Prometheus, Docker Compose, and k6.
 
 ## Run locally
 
@@ -71,9 +82,9 @@ mvn clean package -DskipTests
 
 On a machine where containers are restricted, point each service at externally managed PostgreSQL, Redis, and Kafka instances through the environment variables shown in `compose.yml`. The GitHub Actions workflows provide container-build and opt-in contention verification on hosted runners.
 
-The gateway listens on `http://localhost:8080`. HTTP application services expose OpenAPI documents through `/swagger-ui.html`.
+The gateway listens on `http://localhost:8080`. In the default development profile it permits requests; the `prod` profile enables JWT validation. HTTP application services expose OpenAPI documents through `/swagger-ui.html`.
 
-Live seat changes are available over WebSocket at `ws://localhost:8081/ws/events/{eventId}/seats`. The event service projects reservation events idempotently before broadcasting availability changes.
+The event service consumes reservation events from Kafka and updates its seat-map read model idempotently. Clients obtain current availability through the event service's REST API.
 
 ### Hold a seat
 
@@ -110,12 +121,16 @@ After pushing the repository to GitHub, open **Actions → cloud contention benc
 ## Repository guide
 
 - `docs/` — invariants, API lifecycle, ADRs, and operational notes
-- `infra/` — database bootstrap, dashboards, and local configuration
-- `deploy/helm/` — Kubernetes deployment chart
+- `infra/` — database bootstrap and Prometheus configuration
 - `load-tests/` — reproducible high-contention workload
 - `.github/workflows/` — Maven compilation and container-build checks
 
-The Helm chart deploys application services and expects PostgreSQL, Redis, Kafka, and a Kubernetes metrics server to exist in the target environment. Override dependency addresses and the database secret in a private values file.
+For a first code reading, follow these classes in order:
+
+1. `ReservationController` → `ReservationService` → `RedisSeatGate` and `SeatInventoryRepository`
+2. `OutboxPublisher` → `ReservationEventProjector`
+3. `BookingController` → `BookingStore` → `BookingOrchestrator`
+4. `PaymentController` → `PaymentService`
 
 Review [operations](docs/OPERATIONS.md) and [security boundaries](SECURITY.md) before deploying beyond local development.
 
