@@ -2,7 +2,7 @@
 
 SeatSync is a clean-room, event-driven ticket reservation platform for high-demand event openings. Its central invariant is simple: **a seat can be sold at most once**, even when concurrent requests, retries, delayed payments, or expired holds occur at the same time.
 
-The repository is intentionally production-oriented without pretending to be a production deployment. It includes correctness boundaries, failure handling, observability, integration tests, and load-test scenarios. Performance numbers belong in documentation only after they have been reproduced on a stated environment.
+The repository is intentionally production-oriented without pretending to be a production deployment. It includes correctness boundaries, failure handling, observability hooks, manual verification guidance, and load-test scenarios. Performance numbers belong in documentation only after they have been reproduced on a stated environment.
 
 ## Architecture
 
@@ -51,7 +51,7 @@ Java 21, Spring Boot, PostgreSQL, Redis, Kafka, REST/OpenAPI, gRPC/Protocol Buff
 
 ## Run locally
 
-Requirements: Java 21, Maven 3.9+, and Docker with Compose.
+The complete local stack requires Java 21, Maven 3.9+, and a compatible container runtime with Compose.
 
 ```bash
 docker compose up -d postgres redis kafka
@@ -62,6 +62,14 @@ mvn -pl payment-service spring-boot:run
 mvn -pl booking-service spring-boot:run
 mvn -pl gateway-service spring-boot:run
 ```
+
+Docker Desktop is not required to compile or statically verify the repository:
+
+```bash
+mvn clean package -DskipTests
+```
+
+On a machine where containers are restricted, point each service at externally managed PostgreSQL, Redis, and Kafka instances through the environment variables shown in `compose.yml`. The GitHub Actions workflows provide container-build and opt-in contention verification on hosted runners.
 
 The gateway listens on `http://localhost:8080`. HTTP application services expose OpenAPI documents through `/swagger-ui.html`.
 
