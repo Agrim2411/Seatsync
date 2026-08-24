@@ -52,7 +52,25 @@ for port in 8080 8081 8082 8083 8084; do
   fi
 done
 
-seats="$(curl --silent --fail "${base_url}/api/events/${event_id}/seats")"
+seats_response_file="$(mktemp)"
+seats_status="$(
+  curl --silent --show-error \
+    --output "$seats_response_file" \
+    --write-out '%{http_code}' \
+    "${base_url}/api/events/${event_id}/seats"
+)"
+seats="$(<"$seats_response_file")"
+rm -f "$seats_response_file"
+
+if [[ "$seats_status" != "200" ]]; then
+  relevant_logs="$({
+    docker compose logs --no-color --tail=80 gateway-service event-service \
+      | grep -E ' ERROR |Exception|status=|Connection refused' \
+      | tail -n 4
+  } || true)"
+  fail "Seat-map request returned HTTP ${seats_status}. Body: ${seats:-empty}. Relevant logs: ${relevant_logs:-not found}"
+fi
+
 seat_id="$(jq -r '.[] | select(.availability == "AVAILABLE") | .id' <<<"$seats" | head -n 1)"
 price_minor="$(jq -r --arg seatId "$seat_id" '.[] | select(.id == $seatId) | .priceMinor' <<<"$seats")"
 
