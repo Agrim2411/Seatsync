@@ -6,8 +6,12 @@ on:
     branches: [main]
     paths:
       - .github/workflows/smoke.yml
+      - Dockerfile
+      - compose.yml
+      - pom.xml
+      - "**/pom.xml"
+      - "**/src/main/**"
       - scripts/smoke-test.sh
-      - "**/src/main/resources/db/migration/**"
 
 permissions:
   contents: read
