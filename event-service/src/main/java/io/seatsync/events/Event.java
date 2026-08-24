@@ -23,14 +23,6 @@ public class Event {
 
   protected Event() {}
 
-  public Event(UUID id, String name, String venue, Instant saleStartsAt, Instant startsAt) {
-    this.id = id;
-    this.name = name;
-    this.venue = venue;
-    this.saleStartsAt = saleStartsAt;
-    this.startsAt = startsAt;
-  }
-
   public UUID getId() {
     return id;
   }

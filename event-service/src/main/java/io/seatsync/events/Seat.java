@@ -40,17 +40,6 @@ public class Seat {
 
   protected Seat() {}
 
-  public Seat(
-      UUID id, UUID eventId, String section, String rowLabel, String label, long priceMinor) {
-    this.id = id;
-    this.eventId = eventId;
-    this.section = section;
-    this.rowLabel = rowLabel;
-    this.label = label;
-    this.priceMinor = priceMinor;
-    this.availability = Availability.AVAILABLE;
-  }
-
   public UUID getId() {
     return id;
   }

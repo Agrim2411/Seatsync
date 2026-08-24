@@ -41,6 +41,10 @@ class OutboxEvent {
     return id;
   }
 
+  String getAggregateType() {
+    return aggregateType;
+  }
+
   UUID getAggregateId() {
     return aggregateId;
   }

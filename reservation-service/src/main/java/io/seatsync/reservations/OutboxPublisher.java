@@ -41,6 +41,8 @@ class OutboxPublisher {
                     event.getEventType(),
                     "schemaVersion",
                     1,
+                    "aggregateType",
+                    event.getAggregateType(),
                     "aggregateId",
                     event.getAggregateId(),
                     "data",

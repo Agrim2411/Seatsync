@@ -48,8 +48,8 @@ class BookingOrchestrator {
               .body(
                   new PaymentRequest(
                       booking.getId(),
-                      request.amountMinor(),
-                      request.currency(),
+                      booking.getAmountMinor(),
+                      booking.getCurrency(),
                       request.paymentMethodToken()))
               .retrieve()
               .body(PaymentResponse.class);

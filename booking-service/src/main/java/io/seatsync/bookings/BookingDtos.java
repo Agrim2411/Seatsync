@@ -26,14 +26,4 @@ final class BookingDtos {
 
   record PaymentResponse(
       UUID paymentId, UUID bookingId, long amountMinor, String currency, String status) {}
-
-  record ConfirmHoldRequest(UUID customerId) {}
-
-  record HoldResponse(
-      UUID holdId,
-      UUID eventId,
-      UUID seatId,
-      UUID customerId,
-      String status,
-      java.time.Instant expiresAt) {}
 }
