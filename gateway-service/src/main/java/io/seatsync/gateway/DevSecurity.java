@@ -8,7 +8,7 @@ import org.springframework.security.web.server.SecurityWebFilterChain;
 @Profile("!prod")
 class DevSecurity {
   @Bean
-  SecurityWebFilterChain devSecurity(ServerHttpSecurity http) {
+  SecurityWebFilterChain devSecurityFilterChain(ServerHttpSecurity http) {
     return http.csrf(ServerHttpSecurity.CsrfSpec::disable)
         .authorizeExchange(a -> a.anyExchange().permitAll())
         .build();

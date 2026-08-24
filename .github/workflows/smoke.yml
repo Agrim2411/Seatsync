@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 25
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Build and start complete SeatSync stack
         run: docker compose up -d --build
