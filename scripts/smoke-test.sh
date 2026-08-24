@@ -35,8 +35,20 @@ for port in 8080 8081 8082 8083 8084; do
     sleep 1
   done
   if [[ "$ready" != "true" ]]; then
+    case "$port" in
+      8080) service="gateway-service" ;;
+      8081) service="event-service" ;;
+      8082) service="reservation-service" ;;
+      8083) service="booking-service" ;;
+      8084) service="payment-service" ;;
+    esac
+    relevant_log="$({
+      docker compose logs --no-color --tail=150 "$service" \
+        | grep -E 'APPLICATION FAILED|BeanDefinitionOverrideException|Schema-validation|Caused by:| ERROR ' \
+        | tail -n 1
+    } || true)"
     echo "Inspect logs with: docker compose logs --tail=200" >&2
-    fail "Service on port ${port} did not become healthy within 60 seconds"
+    fail "Service ${service} on port ${port} did not become healthy within 60 seconds. Last relevant log: ${relevant_log:-not found}"
   fi
 done
 
