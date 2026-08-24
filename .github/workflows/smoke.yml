@@ -1,0 +1,41 @@
+name: end-to-end smoke test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/smoke.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: seatsync-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and start complete SeatSync stack
+        run: docker compose up -d --build
+
+      - name: Exercise complete booking path
+        run: ./scripts/smoke-test.sh
+
+      - name: Show container state
+        if: always()
+        run: docker compose ps -a
+
+      - name: Show service logs on failure
+        if: failure()
+        run: docker compose logs --tail=500
+
+      - name: Stop stack and remove runner data
+        if: always()
+        run: docker compose down -v --remove-orphans
