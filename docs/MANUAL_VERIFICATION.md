@@ -32,9 +32,14 @@ Stop the stack while preserving PostgreSQL data with `docker compose down`. Afte
 seats have been used, reset the local demo databases with `docker compose down -v`; this permanently
 deletes the Compose-managed PostgreSQL volume and the demo booking data inside it.
 
-The same API smoke test is not currently a GitHub workflow. GitHub runs the unit tests, image builds,
-and the separately triggered contention benchmark. Run this complete workflow locally because it is
-intended to teach and demonstrate the request path interactively.
+The same API smoke test runs on a GitHub-hosted Linux runner through
+`.github/workflows/smoke.yml`. Open **Actions -> end-to-end smoke test -> Run workflow** to start it
+manually. It also runs automatically when runtime code, POMs, Docker/Compose inputs, or the smoke
+script change on `main`. GitHub starts the complete Compose stack, runs this script, shows service
+state and failure logs, and always removes its containers and volumes.
+
+Use the hosted workflow when local registry access is blocked by a corporate certificate. Run the
+same script locally when you want to inspect the request path and databases interactively.
 
 ## Health
 

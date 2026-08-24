@@ -141,16 +141,24 @@ Rancher Desktop (or another compatible container engine), the Compose plugin, `c
 
 The k6 contention benchmark submits concurrent hold attempts for one seat and requires exactly one winner. See [the benchmark instructions](load-tests/README.md). No performance result is claimed until this workload has been run and its result retained.
 
-### Run without Docker on your laptop
+### Run verification without Docker on your laptop
 
-After pushing the repository to GitHub, open **Actions → cloud contention benchmark → Run workflow**. Choose a concurrency level and start the workflow. GitHub builds the reservation stack on a hosted Linux runner, executes k6, and provides the JSON result under the workflow's **Artifacts** section. No project process runs on the local computer.
+To verify the complete booking path, open **Actions -> end-to-end smoke test -> Run workflow**.
+GitHub builds and starts all five services with PostgreSQL, Redis, and Kafka, then verifies the path
+from gateway through payment and gRPC confirmation to the Kafka-updated seat map. The hosted runner
+and its Compose data are discarded after the job.
+
+For the separate concurrency scenario, open **Actions -> cloud contention benchmark -> Run
+workflow**. Choose a concurrency level and start it. GitHub builds the reservation stack on a hosted
+Linux runner, executes k6, and provides the JSON result under the workflow's **Artifacts** section.
+Neither workflow runs a project process on the local computer.
 
 ## Repository guide
 
 - `docs/` — invariants, API lifecycle, ADRs, and operational notes
 - `infra/` — database bootstrap and Prometheus configuration
 - `load-tests/` — reproducible high-contention workload
-- `.github/workflows/` — Maven compilation and container-build checks
+- `.github/workflows/` — build, hosted end-to-end smoke, and contention workflows
 
 For a first code reading, follow these classes in order:
 
