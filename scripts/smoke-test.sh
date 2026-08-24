@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+base_url="${BASE_URL:-http://localhost:8080}"
+event_id="10000000-0000-0000-0000-000000000001"
+customer_id="30000000-0000-0000-0000-000000000001"
+
+for command in curl jq; do
+  if ! command -v "$command" >/dev/null 2>&1; then
+    echo "Required command is missing: $command" >&2
+    exit 1
+  fi
+done
+
+echo "Waiting for SeatSync services..."
+for port in 8080 8081 8082 8083 8084; do
+  ready=false
+  for attempt in {1..60}; do
+    if curl --silent --fail "http://localhost:${port}/actuator/health" >/dev/null; then
+      ready=true
+      break
+    fi
+    sleep 1
+  done
+  if [[ "$ready" != "true" ]]; then
+    echo "Service on port ${port} did not become healthy." >&2
+    echo "Inspect logs with: docker compose logs --tail=200" >&2
+    exit 1
+  fi
+done
+
+seats="$(curl --silent --fail "${base_url}/api/events/${event_id}/seats")"
+seat_id="$(jq -r '.[] | select(.availability == "AVAILABLE") | .id' <<<"$seats" | head -n 1)"
+price_minor="$(jq -r --arg seatId "$seat_id" '.[] | select(.id == $seatId) | .priceMinor' <<<"$seats")"
+
+if [[ -z "$seat_id" || "$seat_id" == "null" ]]; then
+  echo "No AVAILABLE demo seat remains." >&2
+  echo "Reset local demo data with: docker compose down -v" >&2
+  exit 1
+fi
+
+run_id="$(date +%s)"
+hold_key="smoke-hold-${run_id}"
+booking_key="smoke-booking-${run_id}"
+hold_request="$(
+  jq -n \
+    --arg eventId "$event_id" \
+    --arg seatId "$seat_id" \
+    --arg customerId "$customer_id" \
+    '{eventId: $eventId, seatId: $seatId, customerId: $customerId}'
+)"
+
+echo "Creating a hold for seat ${seat_id}..."
+hold="$(
+  curl --silent --show-error --fail-with-body \
+    -X POST "${base_url}/api/reservations/holds" \
+    -H 'Content-Type: application/json' \
+    -H "Idempotency-Key: ${hold_key}" \
+    -d "$hold_request"
+)"
+hold_id="$(jq -er '.holdId' <<<"$hold")"
+jq -e '.status == "ACTIVE"' <<<"$hold" >/dev/null
+
+echo "Replaying the hold request to verify idempotency..."
+replayed_hold="$(
+  curl --silent --show-error --fail-with-body \
+    -X POST "${base_url}/api/reservations/holds" \
+    -H 'Content-Type: application/json' \
+    -H "Idempotency-Key: ${hold_key}" \
+    -d "$hold_request"
+)"
+replayed_hold_id="$(jq -er '.holdId' <<<"$replayed_hold")"
+if [[ "$replayed_hold_id" != "$hold_id" ]]; then
+  echo "Idempotency failure: replay returned another hold." >&2
+  exit 1
+fi
+
+booking_request="$(
+  jq -n \
+    --arg holdId "$hold_id" \
+    --arg customerId "$customer_id" \
+    --argjson amountMinor "$price_minor" \
+    '{holdId: $holdId, customerId: $customerId, amountMinor: $amountMinor, currency: "INR", paymentMethodToken: "pm_success"}'
+)"
+
+echo "Authorizing payment and confirming the hold..."
+booking="$(
+  curl --silent --show-error --fail-with-body \
+    -X POST "${base_url}/api/bookings" \
+    -H 'Content-Type: application/json' \
+    -H "Idempotency-Key: ${booking_key}" \
+    -d "$booking_request"
+)"
+booking_id="$(jq -er '.bookingId' <<<"$booking")"
+jq -e '.status == "CONFIRMED"' <<<"$booking" >/dev/null
+
+echo "Waiting for Kafka to update the event-service read model..."
+projected=false
+for attempt in {1..20}; do
+  availability="$(
+    curl --silent --fail "${base_url}/api/events/${event_id}/seats" \
+      | jq -r --arg seatId "$seat_id" '.[] | select(.id == $seatId) | .availability'
+  )"
+  if [[ "$availability" == "BOOKED" ]]; then
+    projected=true
+    break
+  fi
+  sleep 1
+done
+
+if [[ "$projected" != "true" ]]; then
+  echo "Booking succeeded, but the seat-map projection did not become BOOKED." >&2
+  exit 1
+fi
+
+echo
+echo "SeatSync smoke test passed."
+echo "  holdId:    ${hold_id}"
+echo "  bookingId: ${booking_id}"
+echo "  seatId:    ${seat_id}"
+echo "  final read-model availability: BOOKED"

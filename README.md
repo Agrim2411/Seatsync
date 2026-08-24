@@ -99,7 +99,7 @@ mvn -pl gateway-service spring-boot:run
 Docker Desktop is not required to compile or statically verify the repository:
 
 ```bash
-mvn clean package -DskipTests
+mvn clean test
 ```
 
 On a machine where containers are restricted, point each service at externally managed PostgreSQL, Redis, and Kafka instances through the environment variables shown in `compose.yml`. The GitHub Actions workflows provide container-build and opt-in contention verification on hosted runners.
@@ -129,10 +129,15 @@ curl -X POST http://localhost:8080/api/bookings \
 ## Verification
 
 ```bash
-mvn clean package -DskipTests
-docker compose --profile observability up -d
+JAVA_HOME=/opt/homebrew/opt/openjdk@21 mvn clean test
+docker compose up -d --build
+./scripts/smoke-test.sh
 k6 run --summary-export=load-tests/results/contention.json load-tests/contention.js
 ```
+
+The `JAVA_HOME` override above selects Homebrew Java 21 for that command only. The smoke test needs
+Rancher Desktop (or another compatible container engine), the Compose plugin, `curl`, and `jq`. See
+[manual verification](docs/MANUAL_VERIFICATION.md) for its request path and reset instructions.
 
 The k6 contention benchmark submits concurrent hold attempts for one seat and requires exactly one winner. See [the benchmark instructions](load-tests/README.md). No performance result is claimed until this workload has been run and its result retained.
 

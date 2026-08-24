@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: {distribution: temurin, java-version: "21", cache: maven}
-      - run: mvn -B -DskipTests package
+      - run: mvn -B -T 1C clean verify
   container:
     runs-on: ubuntu-latest
     strategy:
