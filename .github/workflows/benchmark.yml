@@ -23,7 +23,7 @@ jobs:
     timeout-minutes: 25
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build and start reservation stack
         run: docker compose up -d --build reservation-service
