@@ -1,5 +1,18 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
+
+report_failed_command() {
+  local exit_code="$?"
+  echo "::error title=SeatSync smoke command failed::Line ${BASH_LINENO[0]} exited ${exit_code}: ${BASH_COMMAND}" >&2
+}
+
+fail() {
+  echo "::error title=SeatSync smoke test failed::$1" >&2
+  echo "$1" >&2
+  exit 1
+}
+
+trap report_failed_command ERR
 
 base_url="${BASE_URL:-http://localhost:8080}"
 event_id="10000000-0000-0000-0000-000000000001"
@@ -7,8 +20,7 @@ customer_id="30000000-0000-0000-0000-000000000001"
 
 for command in curl jq; do
   if ! command -v "$command" >/dev/null 2>&1; then
-    echo "Required command is missing: $command" >&2
-    exit 1
+    fail "Required command is missing: ${command}"
   fi
 done
 
@@ -23,9 +35,8 @@ for port in 8080 8081 8082 8083 8084; do
     sleep 1
   done
   if [[ "$ready" != "true" ]]; then
-    echo "Service on port ${port} did not become healthy." >&2
     echo "Inspect logs with: docker compose logs --tail=200" >&2
-    exit 1
+    fail "Service on port ${port} did not become healthy within 60 seconds"
   fi
 done
 
@@ -34,9 +45,8 @@ seat_id="$(jq -r '.[] | select(.availability == "AVAILABLE") | .id' <<<"$seats" 
 price_minor="$(jq -r --arg seatId "$seat_id" '.[] | select(.id == $seatId) | .priceMinor' <<<"$seats")"
 
 if [[ -z "$seat_id" || "$seat_id" == "null" ]]; then
-  echo "No AVAILABLE demo seat remains." >&2
   echo "Reset local demo data with: docker compose down -v" >&2
-  exit 1
+  fail "No AVAILABLE demo seat remains"
 fi
 
 run_id="$(date +%s)"
@@ -71,8 +81,7 @@ replayed_hold="$(
 )"
 replayed_hold_id="$(jq -er '.holdId' <<<"$replayed_hold")"
 if [[ "$replayed_hold_id" != "$hold_id" ]]; then
-  echo "Idempotency failure: replay returned another hold." >&2
-  exit 1
+  fail "Idempotency replay returned another hold"
 fi
 
 booking_request="$(
@@ -109,8 +118,7 @@ for attempt in {1..20}; do
 done
 
 if [[ "$projected" != "true" ]]; then
-  echo "Booking succeeded, but the seat-map projection did not become BOOKED." >&2
-  exit 1
+  fail "Booking succeeded, but the seat-map projection did not become BOOKED within 20 seconds"
 fi
 
 echo
