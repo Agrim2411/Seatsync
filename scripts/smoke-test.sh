@@ -63,12 +63,23 @@ seats="$(<"$seats_response_file")"
 rm -f "$seats_response_file"
 
 if [[ "$seats_status" != "200" ]]; then
+  direct_response_file="$(mktemp)"
+  direct_status="$(
+    curl --silent --show-error \
+      --output "$direct_response_file" \
+      --write-out '%{http_code}' \
+      "http://localhost:8081/api/events/${event_id}/seats"
+  )"
+  direct_body="$(<"$direct_response_file")"
+  rm -f "$direct_response_file"
   relevant_logs="$({
-    docker compose logs --no-color --tail=80 gateway-service event-service \
-      | grep -E ' ERROR |Exception|status=|Connection refused' \
-      | tail -n 4
+    docker compose logs --no-color --since=30s event-service \
+      | grep -E ' ERROR | WARN |Exception|Caused by:|SQLState|SQL Error' \
+      | grep -Ev 'org\.apache\.kafka|o\.a\.k\.' \
+      | tail -n 12 \
+      | tr '\n' ' '
   } || true)"
-  fail "Seat-map request returned HTTP ${seats_status}. Body: ${seats:-empty}. Relevant logs: ${relevant_logs:-not found}"
+  fail "Seat-map request returned HTTP ${seats_status} through the gateway (body: ${seats:-empty}) and HTTP ${direct_status} directly from event-service (body: ${direct_body:-empty}). Relevant event-service logs: ${relevant_logs:-not found}"
 fi
 
 seat_id="$(jq -r '.[] | select(.availability == "AVAILABLE") | .id' <<<"$seats" | head -n 1)"
