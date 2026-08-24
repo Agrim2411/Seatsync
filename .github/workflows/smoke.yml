@@ -7,6 +7,7 @@ on:
     paths:
       - .github/workflows/smoke.yml
       - scripts/smoke-test.sh
+      - "**/src/main/resources/db/migration/**"
 
 permissions:
   contents: read

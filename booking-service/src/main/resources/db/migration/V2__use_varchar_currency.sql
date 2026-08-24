@@ -1,0 +1,2 @@
+ALTER TABLE bookings
+    ALTER COLUMN currency TYPE VARCHAR(3);
